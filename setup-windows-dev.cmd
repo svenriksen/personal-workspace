@@ -7,17 +7,23 @@ set "MSYS2_SHA256=c105946e64e08f099ac0e4647461ce762b95333ad211777666476a9a41451d
 set "GIT_RELEASE=v2.55.0.windows.5"
 set "GIT_ARCHIVE_VERSION=2.55.0.5"
 set "GIT_SHA256=5aa8a20f6e9abb2c755f0e73c91c687701a46b309ad84a0ca6509380fa4ae290"
+set "VSCODE_VERSION=1.138.0"
+set "VSCODE_COMMIT=7debcd0e2acdea1c52de81bf9ee1620444407dda"
+set "VSCODE_SHA256=820df7a601d0179fc850433e1a1c047d2926a7a5a78ef01cd49fe8833fa2010d"
 if not defined DEV_TOOLS_ROOT set "DEV_TOOLS_ROOT=%LOCALAPPDATA%\portable-dev"
 set "MSYS2_ROOT=%DEV_TOOLS_ROOT%\msys64"
 set "GIT_ROOT=%DEV_TOOLS_ROOT%\git"
 set "GIT_CMD=%DEV_TOOLS_ROOT%\git\cmd"
+set "VSCODE_DIR=%LOCALAPPDATA%\Programs\Microsoft VS Code"
 set "MSYS2_STAGE=%DEV_TOOLS_ROOT%\msys2-stage-%RANDOM%-%RANDOM%"
 set "GIT_STAGE=%DEV_TOOLS_ROOT%\git-stage-%RANDOM%-%RANDOM%"
 set "WORK_DIR=%TEMP%\windows-dev-setup-%RANDOM%-%RANDOM%"
 set "MSYS2_ARCHIVE=%WORK_DIR%\msys2-base-x86_64-%MSYS2_VERSION%.sfx.exe"
 set "GIT_ARCHIVE=%WORK_DIR%\PortableGit-%GIT_ARCHIVE_VERSION%-64-bit.7z.exe"
+set "VSCODE_SETUP=%WORK_DIR%\VSCodeUserSetup-x64-%VSCODE_VERSION%.exe"
 set "MSYS2_URL=https://github.com/msys2/msys2-installer/releases/download/%MSYS2_RELEASE%/msys2-base-x86_64-%MSYS2_VERSION%.sfx.exe"
 set "GIT_URL=https://github.com/git-for-windows/git/releases/download/%GIT_RELEASE%/PortableGit-%GIT_ARCHIVE_VERSION%-64-bit.7z.exe"
+set "VSCODE_URL=https://vscode.download.prss.microsoft.com/dbazure/download/stable/%VSCODE_COMMIT%/VSCodeUserSetup-x64-%VSCODE_VERSION%.exe"
 
 if /i not "%OS%"=="Windows_NT" (
     echo ERROR: This script must run on Windows.
@@ -55,7 +61,7 @@ if errorlevel 1 (
 )
 
 echo(
-echo [1/3] Installing portable MSYS2 in "%MSYS2_ROOT%"...
+echo [1/4] Installing portable MSYS2 in "%MSYS2_ROOT%"...
 if exist "%MSYS2_ROOT%\usr\bin\bash.exe" goto :msys2_ready
 if exist "%MSYS2_ROOT%" (
     echo ERROR: "%MSYS2_ROOT%" exists but is not a valid MSYS2 installation.
@@ -98,7 +104,7 @@ if errorlevel 1 (
 )
 
 echo(
-echo [2/3] Updating MSYS2 and installing g++...
+echo [2/4] Updating MSYS2 and installing g++...
 call :run_msys "pacman --noconfirm -Syuu"
 if errorlevel 1 (
     echo ERROR: MSYS2 core package update failed.
@@ -121,7 +127,7 @@ if errorlevel 1 (
 )
 
 echo(
-echo [3/3] Installing PortableGit with Git Bash in "%GIT_ROOT%"...
+echo [3/4] Installing PortableGit with Git Bash in "%GIT_ROOT%"...
 if exist "%GIT_ROOT%\cmd\git.exe" if exist "%GIT_ROOT%\git-bash.exe" goto :git_ready
 if exist "%GIT_ROOT%" (
     echo ERROR: "%GIT_ROOT%" exists but is not a valid PortableGit installation.
@@ -173,13 +179,44 @@ call :add_git_to_user_path
 if errorlevel 1 echo WARNING: Git could not be added to your user PATH. Use its full path shown below.
 
 echo(
+echo [4/4] Installing VS Code %VSCODE_VERSION% in "%VSCODE_DIR%"...
+if exist "%VSCODE_DIR%\Code.exe" goto :vscode_ready
+where code.cmd >nul 2>&1
+if not errorlevel 1 (
+    echo VS Code is already installed on this machine.
+    goto :vscode_done
+)
+call :download "%VSCODE_URL%" "%VSCODE_SETUP%"
+if errorlevel 1 goto :failed
+call :verify_sha256 "%VSCODE_SETUP%" "%VSCODE_SHA256%"
+if errorlevel 1 goto :failed
+"%VSCODE_SETUP%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MERGETASKS="!runcode,addtopath,addcontextmenufiles,addcontextmenufolders"
+if errorlevel 1 (
+    echo ERROR: VS Code installation failed.
+    goto :failed
+)
+if not exist "%VSCODE_DIR%\Code.exe" (
+    echo ERROR: VS Code was not installed to "%VSCODE_DIR%".
+    goto :failed
+)
+
+:vscode_ready
+call "%VSCODE_DIR%\bin\code.cmd" --version
+if errorlevel 1 (
+    echo ERROR: VS Code verification failed.
+    goto :failed
+)
+
+:vscode_done
+echo(
 echo Installation complete. No administrator privileges were requested.
 echo Portable tools: "%DEV_TOOLS_ROOT%"
 echo MSYS2 UCRT64: "%MSYS2_ROOT%\ucrt64.exe"
 echo g++:           "%MSYS2_ROOT%\ucrt64\bin\g++.exe"
 echo Git:           "%GIT_ROOT%\cmd\git.exe"
 echo Git Bash:      "%GIT_ROOT%\git-bash.exe"
-echo Open a new terminal before using git from PATH.
+if exist "%VSCODE_DIR%\Code.exe" echo VS Code:       "%VSCODE_DIR%\Code.exe"
+echo Open a new terminal before using git or code from PATH.
 rd /s /q "%WORK_DIR%" >nul 2>&1
 exit /b 0
 
